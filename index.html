@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>物件告別儀式</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background-color: #f0f2ff; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+        .card { background: white; border-radius: 2rem; padding: 2rem; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+        .input-field { background: #f8f9ff; border: none; border-radius: 1rem; padding: 1rem; width: 100%; margin-top: 0.5rem; outline: none; }
+        .btn-next { background: black; color: white; border-radius: 2rem; padding: 1rem; width: 100%; font-weight: bold; margin-top: 2rem; }
+        .step { display: none; }
+        .step.active { display: block; }
+        .preview-img { width: 100%; border-radius: 1rem; margin-top: 1rem; display: none; }
+    </style>
+</head>
+<body class="p-6">
+
+    <div id="app" class="max-w-md mx-auto">
+        <h2 class="text-center text-2xl font-bold mb-6 text-gray-700" id="pageTitle">基本資料</h2>
+
+        <div id="step1" class="step active card">
+            <label class="text-gray-500">姓名</label>
+            <input type="text" id="name" class="input-field" placeholder="您的稱呼">
+            
+            <label class="text-gray-500 mt-4 block">年齡</label>
+            <input type="number" id="age" class="input-field">
+            
+            <label class="text-gray-500 mt-4 block">Email</label>
+            <input type="email" id="email" class="input-field" placeholder="example@mail.com">
+            
+            <button onclick="nextStep(2)" class="btn-next">下一步</button>
+        </div>
+
+        <div id="step2" class="step card">
+            <label class="text-gray-500">告別物件名稱</label>
+            <input type="text" id="objName" class="input-field">
+            
+            <label class="text-gray-500 mt-4 block">功能與外觀描述</label>
+            <textarea id="objDesc" class="input-field" rows="3"></textarea>
+            
+            <label class="text-gray-500 mt-4 block">上傳物件照片</label>
+            <input type="file" id="objFile" class="input-field" accept="image/*" onchange="preview(this, 'prev1')">
+            <img id="prev1" class="preview-img">
+            
+            <button onclick="nextStep(3)" class="btn-next">下一步</button>
+        </div>
+
+        <div id="step3" class="step card">
+            <h3 class="font-bold text-gray-600 mb-2">溫柔物件</h3>
+            <input type="text" id="kindName" class="input-field" placeholder="名稱">
+            <input type="file" id="kindFile" class="input-field" accept="image/*" onchange="preview(this, 'prev2')">
+            <img id="prev2" class="preview-img">
+
+            <h3 class="font-bold text-gray-600 mt-6 mb-2">嘲諷物件</h3>
+            <input type="text" id="mockName" class="input-field" placeholder="名稱">
+            <input type="file" id="mockFile" class="input-field" accept="image/*" onchange="preview(this, 'prev3')">
+            <img id="prev3" class="preview-img">
+            
+            <button onclick="submitForm()" id="submitBtn" class="btn-next">完成並送出</button>
+        </div>
+    </div>
+
+    <script>
+        const IMGBB_API_KEY = 'c771d4d74bbeeac8401c8c2ec77452f0'; // 填入你的 API Key
+        const GAS_URL = 'AKfycbx0JE0bryQeFKPaxCDWpiFNHJtdy3OLJaR4P9RmnKJgdtlc0Ux8oB2YJRaBw8KjOlAz'; // 填入你的 Google Apps Script URL
+
+        function nextStep(step) {
+            document.querySelectorAll('.step').forEach(el => el.classList.remove('active'));
+            document.getElementById('step' + step).classList.add('active');
+            const titles = ["", "基本資料", "告別物件", "儀式物件選擇"];
+            document.getElementById('pageTitle').innerText = titles[step];
+        }
+
+        function preview(input, imgId) {
+            const file = input.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = e => {
+                    const img = document.getElementById(imgId);
+                    img.src = e.target.result;
+                    img.style.display = 'block';
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+
+        async function uploadImage(file) {
+            if (!file) return "";
+            let formData = new FormData();
+            formData.append("image", file);
+            const resp = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_API_KEY}`, {
+                method: "POST",
+                body: formData
+            });
+            const json = await resp.json();
+            return json.data.url; // 回傳圖片網址
+        }
+
+        async function submitForm() {
+            const btn = document.getElementById('submitBtn');
+            btn.innerText = "上傳中，請稍候...";
+            btn.disabled = true;
+
+            // 1. 上傳所有圖片到圖床獲取網址
+            const objImgUrl = await uploadImage(document.getElementById('objFile').files[0]);
+            const kindImgUrl = await uploadImage(document.getElementById('kindFile').files[0]);
+            const mockImgUrl = await uploadImage(document.getElementById('mockFile').files[0]);
+
+            // 2. 彙整資料
+            const payload = {
+                name: document.getElementById('name').value,
+                email: document.getElementById('email').value,
+                objName: document.getElementById('objName').value,
+                objUrl: objImgUrl,
+                kindName: document.getElementById('kindName').value,
+                kindUrl: kindImgUrl,
+                mockName: document.getElementById('mockName').value,
+                mockUrl: mockImgUrl
+            };
+
+            // 3. 傳送到 Google Sheets
+            fetch(GAS_URL, {
+                method: "POST",
+                body: JSON.stringify(payload)
+            }).then(() => {
+                alert("資料已送出！");
+                location.reload();
+            });
+        }
+    </script>
+</body>
+</html>
